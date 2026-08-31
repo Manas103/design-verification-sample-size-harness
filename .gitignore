@@ -1,0 +1,12 @@
+# virtual environment, regenerable from requirements.txt
+venv/
+
+# regenerable Python bytecode caches
+__pycache__/
+*.pyc
+
+# regenerable pytest cache
+.pytest_cache/
+
+# log output, not committed
+*.log

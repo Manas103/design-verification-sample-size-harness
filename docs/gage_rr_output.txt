@@ -1,0 +1,37 @@
+Study shape: 10 parts x 3 operators x 3 trials
+Acceptance rule: PASS iff %GRR <= 30.0 AND NDC >= 5
+
+scenario                                   engineered      %GRR  NDC  classified  correct
+-----------------------------------------------------------------------------------------
+repeatability_fail_moderate                fail           61.87    1        fail     True
+repeatability_fail_severe                  fail           64.46    1        fail     True
+operator_bias_fail_moderate                fail           35.55    3        fail     True
+operator_bias_fail_severe                  fail           55.96    2        fail     True
+interaction_fail_moderate                  fail           46.30    2        fail     True
+interaction_fail_severe                    fail           53.83    2        fail     True
+combined_repeatability_operator            fail           43.95    2        fail     True
+combined_repeatability_interaction         fail           42.40    3        fail     True
+combined_operator_interaction              fail           73.19    1        fail     True
+poor_discrimination_low_part_variation     fail           80.30    1        fail     True
+combined_all_moderate                      fail           50.70    2        fail     True
+combined_all_severe                        fail           69.07    1        fail     True
+well_designed_gage_pass                    pass            7.99   17        pass     True
+
+Variance components (raw), per scenario:
+  repeatability_fail_moderate: repeatability_var=0.2341 operator_var=0.0000 interaction_var=0.0000 part_var=0.3773 grr_var=0.2341 total_var=0.6114 reasons=['%GRR=61.87 exceeds threshold 30.0', 'NDC=1 below threshold 5']
+  repeatability_fail_severe: repeatability_var=0.8276 operator_var=0.0037 interaction_var=0.0000 part_var=1.1697 grr_var=0.8313 total_var=2.0010 reasons=['%GRR=64.46 exceeds threshold 30.0', 'NDC=1 below threshold 5']
+  operator_bias_fail_moderate: repeatability_var=0.0023 operator_var=0.1414 interaction_var=0.0034 part_var=1.0162 grr_var=0.1470 total_var=1.1633 reasons=['%GRR=35.55 exceeds threshold 30.0', 'NDC=3 below threshold 5']
+  operator_bias_fail_severe: repeatability_var=0.0023 operator_var=0.4578 interaction_var=0.0034 part_var=1.0162 grr_var=0.4634 total_var=1.4797 reasons=['%GRR=55.96 exceeds threshold 30.0', 'NDC=2 below threshold 5']
+  interaction_fail_moderate: repeatability_var=0.0020 operator_var=0.0184 interaction_var=0.2256 part_var=0.9017 grr_var=0.2460 total_var=1.1477 reasons=['%GRR=46.30 exceeds threshold 30.0', 'NDC=2 below threshold 5']
+  interaction_fail_severe: repeatability_var=0.0023 operator_var=0.0184 interaction_var=0.7708 part_var=1.9400 grr_var=0.7915 total_var=2.7315 reasons=['%GRR=53.83 exceeds threshold 30.0', 'NDC=2 below threshold 5']
+  combined_repeatability_operator: repeatability_var=0.1092 operator_var=0.0079 interaction_var=0.0000 part_var=0.4892 grr_var=0.1171 total_var=0.6063 reasons=['%GRR=43.95 exceeds threshold 30.0', 'NDC=2 below threshold 5']
+  combined_repeatability_interaction: repeatability_var=0.1408 operator_var=0.0000 interaction_var=0.1470 part_var=1.3127 grr_var=0.2877 total_var=1.6004 reasons=['%GRR=42.40 exceeds threshold 30.0', 'NDC=3 below threshold 5']
+  combined_operator_interaction: repeatability_var=0.0030 operator_var=0.4310 interaction_var=0.1460 part_var=0.5027 grr_var=0.5800 total_var=1.0827 reasons=['%GRR=73.19 exceeds threshold 30.0', 'NDC=1 below threshold 5']
+  poor_discrimination_low_part_variation: repeatability_var=0.0179 operator_var=0.0000 interaction_var=0.0055 part_var=0.0129 grr_var=0.0233 total_var=0.0362 reasons=['%GRR=80.30 exceeds threshold 30.0', 'NDC=1 below threshold 5']
+  combined_all_moderate: repeatability_var=0.0897 operator_var=0.1300 interaction_var=0.0663 part_var=0.8269 grr_var=0.2860 total_var=1.1129 reasons=['%GRR=50.70 exceeds threshold 30.0', 'NDC=2 below threshold 5']
+  combined_all_severe: repeatability_var=0.3020 operator_var=0.5538 interaction_var=0.3063 part_var=1.2741 grr_var=1.1621 total_var=2.4362 reasons=['%GRR=69.07 exceeds threshold 30.0', 'NDC=1 below threshold 5']
+  well_designed_gage_pass: repeatability_var=0.0021 operator_var=0.0016 interaction_var=0.0003 part_var=0.6190 grr_var=0.0040 total_var=0.6230 reasons=[]
+
+Seeded-failure catch rate: 12/12
+Seeded-pass correctness: 1/1
+Overall: 13/13 scenarios correctly classified

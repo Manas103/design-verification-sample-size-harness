@@ -1,0 +1,28 @@
+[VERIFIED] REQ-001: Attribute (pass/fail) sample size shall be computable at 95% confidence and 95% reliability.
+    acceptance criterion: zero-failure closed-form sample size at C=0.95, R=0.95 equals the published textbook value n=59
+    reason: all attached evidence passed
+    evidence [PASS] (dv_harness.attribute_sampling): zero_failure_sample_size(0.95, 0.95) = 59 (expected 59)
+
+[VERIFIED] REQ-002: Variables sample-size k-factor shall match published one-sided tolerance-interval table values.
+    acceptance criterion: k(n=10, C=0.95, R=0.90) matches Natrella NBS Handbook 91 Table A-6 value 2.355 within 0.005
+    reason: all attached evidence passed
+    evidence [PASS] (dv_harness.variables_sampling): one_sided_k_factor(10, 0.95, 0.90) = 2.3546 (published 2.355, |diff|=0.0004)
+
+[VERIFIED] REQ-003: The gage R&R harness shall flag every seeded measurement-system failure scenario as failing.
+    acceptance criterion: all 12 engineered-to-fail scenarios are classified failed by the %GRR/NDC rule
+    reason: all attached evidence passed
+    evidence [PASS] (dv_harness.gage_rr): caught 12/12 seeded failure scenarios
+
+[VERIFIED] REQ-004: The gage R&R harness shall not flag a healthy measurement system as failing.
+    acceptance criterion: the engineered-to-pass scenario is classified passed by the %GRR/NDC rule
+    reason: all attached evidence passed
+    evidence [PASS] (dv_harness.gage_rr): well_designed_gage_pass: passed=True
+
+[NOT VERIFIED] REQ-005: The verification report generator shall refuse to mark a requirement VERIFIED when no evidence has been attached.
+    acceptance criterion: a requirement with zero attached evidence is reported NOT VERIFIED, reason 'no evidence attached'
+    reason: no evidence attached
+    evidence: (none attached)
+
+summary: 4/5 requirements VERIFIED
+
+Refusal proof: REQ-005 has 0 attached evidence items and is reported as 'NOT VERIFIED' (verified=False), reason: no evidence attached
