@@ -58,8 +58,23 @@ def test_demo_report_verifies_the_others_that_have_passing_evidence():
     evidence = build_evidence()
     report = build_report(REQUIREMENTS, evidence)
     by_id = {s.requirement.id: s for s in report}
-    for rid in ["REQ-001", "REQ-002", "REQ-003", "REQ-004"]:
+    for rid in ["REQ-001", "REQ-002", "REQ-003", "REQ-004", "REQ-007"]:
         assert by_id[rid].verified is True, f"{rid} expected VERIFIED, got {by_id[rid].reason}"
+
+
+def test_demo_report_req_006_is_not_verified_for_a_real_measured_reason_not_missing_evidence():
+    # REQ-006's evidence is genuinely attached (unlike REQ-005), it just
+    # honestly fails: the real measured reliability parameter-recovery
+    # error exceeds the 6% target (see README Findings). This is a
+    # different refusal path than REQ-005's "no evidence attached" and
+    # must not be confused with it.
+    evidence = build_evidence()
+    report = build_report(REQUIREMENTS, evidence)
+    by_id = {s.requirement.id: s for s in report}
+    assert len(evidence["REQ-006"]) == 1
+    assert by_id["REQ-006"].verified is False
+    assert "failing evidence present" in by_id["REQ-006"].reason
+    assert by_id["REQ-006"].reason != "no evidence attached"
 
 
 def test_missing_key_in_evidence_dict_treated_as_no_evidence():

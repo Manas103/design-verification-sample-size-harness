@@ -1,17 +1,23 @@
 """The demo requirement set used by scripts/run_requirement_report.py.
 
-Builds real evidence from the other three modules (no mocked pass/fail
-booleans): the attribute and variables sample-size reference checks, and
-the actual measured gage R&R catch rate over the 13 seeded scenarios.
-REQ-005 is deliberately left without any attached evidence, to prove the
-report generator's refusal behavior fires for real, not just in a unit
-test.
+Builds real evidence from the other four modules (no mocked pass/fail
+booleans): the attribute and variables sample-size reference checks, the
+actual measured gage R&R catch rate over the 13 seeded scenarios, and the
+reliability module's real measured Weibull parameter-recovery error and
+B10 confidence-interval ordering. REQ-005 is deliberately left without
+any attached evidence, to prove the report generator's refusal behavior
+fires for real, not just in a unit test. REQ-006 is not deliberately
+engineered either way: its evidence is the real measured reliability
+recovery error, which honestly comes back failing (see README Findings),
+so REQ-006 is reported NOT VERIFIED for a genuine reason, distinct from
+REQ-005's "no evidence attached" case.
 """
 from __future__ import annotations
 
 from dv_harness.attribute_sampling import zero_failure_sample_size
 from dv_harness.gage_rr import evaluate_scenario
 from dv_harness.gage_rr_scenarios import N_OPERATORS, N_PARTS, N_TRIALS, SCENARIOS
+from dv_harness.reliability import RECOVERY_TOLERANCE, run_reliability_study
 from dv_harness.requirements_report import Evidence, Requirement
 from dv_harness.variables_sampling import one_sided_k_factor
 
@@ -40,6 +46,16 @@ REQUIREMENTS = [
         id="REQ-005",
         description="The verification report generator shall refuse to mark a requirement VERIFIED when no evidence has been attached.",
         acceptance_criterion="a requirement with zero attached evidence is reported NOT VERIFIED, reason 'no evidence attached'",
+    ),
+    Requirement(
+        id="REQ-006",
+        description="The reliability module shall recover every injected Weibull shape and scale parameter, across all 6 seeded failure modes, within 6% relative error.",
+        acceptance_criterion=f"max relative error across 6 failure modes x 2 parameters (12 numbers) is <= {RECOVERY_TOLERANCE * 100:.0f}%",
+    ),
+    Requirement(
+        id="REQ-007",
+        description="The reliability module shall report a B10 life with an ordered 90% confidence interval for every seeded failure mode.",
+        acceptance_criterion="for all 6 failure modes, 0 < ci_low <= B10 <= ci_high",
     ),
 ]
 
@@ -88,5 +104,20 @@ def build_evidence():
     ]
 
     # REQ-005: deliberately no evidence attached.
+
+    study = run_reliability_study()
+    evidence["REQ-006"] = [
+        Evidence("REQ-006", passed=study.meets_claim,
+                 detail=(f"max relative error across 6 failure modes x 2 parameters = "
+                         f"{study.max_rel_error * 100:.2f}% (target <= {RECOVERY_TOLERANCE * 100:.0f}%)"),
+                 source="dv_harness.reliability")
+    ]
+
+    b10_ordering_ok = all(0 < b.ci_low <= b.b10 <= b.ci_high for b in study.b10_results)
+    evidence["REQ-007"] = [
+        Evidence("REQ-007", passed=b10_ordering_ok,
+                 detail=f"B10 ordering (0 < ci_low <= B10 <= ci_high) holds for {len(study.b10_results)}/6 failure modes",
+                 source="dv_harness.reliability")
+    ]
 
     return evidence

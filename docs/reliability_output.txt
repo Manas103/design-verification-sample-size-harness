@@ -1,0 +1,45 @@
+Failure modes: 6, total units on test: 6000
+Recovery claim: every injected shape and scale recovered within 6%
+
+=== Right-censored Weibull MLE parameter recovery ===
+mode                          n_units  n_fail  beta_true  beta_hat  beta_err%  eta_true  eta_hat  eta_err%
+----------------------------------------------------------------------------------------------------------
+bearing_wear                     1000     441      3.200    3.2261       0.82     6.000   5.9293      1.18
+seal_degradation                 1000     334      2.000    1.9868       0.66     8.000   7.8773      1.53
+solder_joint_fatigue             1000     623      1.200    1.1971       0.24     5.000   5.0868      1.74
+electronics_random_failure       1000     403      1.000    0.9353       6.47    10.000  10.2332      2.33
+corrosion                        1000     373      2.500    2.6844       7.38     7.000   6.6429      5.10
+infant_mortality_defect          1000     756      0.600    0.6338       5.63     3.000   2.9473      1.76
+
+Max relative error across 6 modes x 2 parameters (12 numbers): 7.38%
+Meets claim (<= 6%): False
+
+=== Naive uncensored-fit bug, for comparison (see README Findings) ===
+mode: electronics_random_failure (403/1000 units observed to fail before censor_time=5.0)
+true:      beta=1.0000  eta=10.0000
+naive fit (failures only, censored units discarded): beta=1.3312  eta=2.4538  eta_rel_error=75.46%
+censored MLE (correct):                              beta=0.9353  eta=10.2332  eta_rel_error=2.33%
+
+=== B10 life with 90% confidence bounds ===
+mode                                B10  CI low (90%)  CI high (90%)
+--------------------------------------------------------------------
+bearing_wear                     2.9516        2.8274         3.0814
+seal_degradation                 2.5379        2.3654         2.7229
+solder_joint_fatigue             0.7763        0.6937         0.8687
+electronics_random_failure       0.9228        0.7951         1.0711
+corrosion                        2.8726        2.7271         3.0259
+infant_mortality_defect          0.0846        0.0688         0.1040
+
+=== Failure-mode Pareto (ranked by ascending B10 life: shortest B10 = highest priority) ===
+rank  mode                                B10
+   1  infant_mortality_defect          0.0846
+   2  solder_joint_fatigue             0.7763
+   3  electronics_random_failure       0.9228
+   4  seal_degradation                 2.5379
+   5  corrosion                        2.8726
+   6  bearing_wear                     2.9516
+
+=== Summary ===
+max_param_recovery_error_pct = 7.38
+meets_claim (recovery within 6%) = False
+pareto top priority failure mode = infant_mortality_defect

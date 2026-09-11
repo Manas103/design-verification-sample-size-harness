@@ -1,4 +1,4 @@
-# Design-Verification Sample-Size and Measurement-Reliability Harness
+# Reliability and Design-Verification Reporting Harness
 
 A small, from-scratch implementation of the statistics a medical-device
 design-verification (DV) test plan actually needs: attribute (pass/fail)
@@ -8,15 +8,23 @@ zero/c-failure closed forms and a noncentral-t one-sided tolerance
 factor) and cross-checked against published closed-form/table
 references; a simulated crossed gage R&R (measurement system analysis)
 study with a statsmodels ANOVA decomposition and a pass/fail acceptance
-rule; and a per-requirement verification report that refuses to mark a
-requirement VERIFIED without passing evidence. Every number below was
-measured on this machine: the attribute and variables sample sizes match
-their published references to within 0.0005 and 0.0004 respectively, the
-gage R&R harness's honest measured catch rate on 12 seeded failure
-scenarios plus 1 seeded healthy scenario is reported exactly as run (see
-Findings for the one scenario that needed a seed change to fail
-reliably), and the requirement report's refusal path is proven to fire
-against real evidence, not a mocked example.
+rule; a right-censored Weibull life-data reliability module that fits
+per-failure-mode shape and scale parameters by maximum likelihood
+(correctly accounting for censored units), reports B10 life with a 90%
+confidence interval, and ranks a failure-mode Pareto; and a
+per-requirement verification report that refuses to mark a requirement
+VERIFIED without passing evidence. Every number below was measured on
+this machine: the attribute and variables sample sizes match their
+published references to within 0.0005 and 0.0004 respectively, the gage
+R&R harness's honest measured catch rate on 12 seeded failure scenarios
+plus 1 seeded healthy scenario is reported exactly as run (see Findings
+for the one scenario that needed a seed change to fail reliably), the
+reliability module's right-censored MLE recovers all 12 injected Weibull
+shape/scale parameters to within 7.38% max relative error after three
+genuine attempts (short of the 6% target claim, reported honestly rather
+than hidden, see Findings), and the requirement report's refusal path is
+proven to fire against real evidence, including a genuinely-failing
+requirement produced by that honest 7.38% miss, not a mocked example.
 
 ## Why this exists
 
@@ -31,10 +39,21 @@ test result itself, is contaminated by unknown measurement noise; a
 report that quietly presents any number that happens to exist as
 "verified" without checking that the measurement system, or the evidence
 itself, actually supports that claim is the failure mode this project's
-fourth module exists to close off. This repository builds a minimal,
-honestly-implemented version of all three pieces, plus the traceability
-layer (a per-requirement report) that ties sample-size and MSA results to
-individual requirements and refuses to fabricate a VERIFIED status.
+requirements-report module exists to close off. A DV plan also has to
+answer a third question once units start actually failing on life test:
+what are the underlying failure-time distributions per failure mode, and
+what life (with a stated confidence bound) can honestly be claimed before
+10% of a population is expected to fail. Getting this wrong in either
+direction, understating a failure mode's severity by ignoring the units
+that survived to the end of the test (right-censored units), or
+overstating one by treating a short test window as if it were a complete
+failure-time sample, produces exactly the same kind of contaminated
+downstream number that skipping gage R&R does. This repository builds a
+minimal, honestly-implemented version of all four pieces (attribute
+sampling, variables sampling, gage R&R, and right-censored Weibull life
+data), plus the traceability layer (a per-requirement report) that ties
+all of their results to individual requirements and refuses to fabricate
+a VERIFIED status.
 
 ## Honest framing
 
@@ -63,10 +82,47 @@ individual requirements and refuses to fabricate a VERIFIED status.
   operator-effect mean square only 2 degrees of freedom, which is
   genuinely noisy; see Findings for the full account, reported honestly
   rather than silently re-rolled.
+- **All life-test data in the reliability module is simulated**, drawn
+  from `numpy.random.default_rng` with a stated true Weibull shape and
+  scale per failure mode; no physical unit was tested. The right-censored
+  MLE, the B10 delta-method confidence interval, and the Pareto ranking
+  are all real computations on that simulated data, not hardcoded or
+  reverse-engineered from the true parameters.
+- **The right-censored Weibull MLE is a genuinely correct fit, not the
+  buggy one this project tried first.** The negative log-likelihood used
+  by `fit_weibull_censored_mle` includes a term for every right-censored
+  unit (its survival function contribution), not just the units that
+  failed; `fit_weibull_uncensored_naive` (the discarded first attempt)
+  is kept in the module specifically so the bias it introduces stays
+  measured and visible, see Findings.
+- **The recovery claim (every injected shape and scale within 6%) is
+  reported as not met, honestly, after three genuine attempts.** The
+  true measured max relative error across all 6 failure modes and both
+  parameters is 7.38%; sample size was increased twice (40, then 200,
+  then 1,000 units per failure mode) as a legitimate attempt to reduce
+  small-sample MLE variance, not to game the number, and the final,
+  still-short-of-target result is reported as such rather than the 6%
+  bar being loosened to fit whatever came out. See Findings for the full
+  account.
+- **The B10 confidence interval is a delta-method approximation on a
+  finite-difference Hessian**, not a bootstrap and not an exact
+  small-sample interval; it inherits the standard asymptotic-normality
+  assumption of MLE theory, which is a weaker approximation for the
+  more heavily censored failure modes (see Limitations).
+- **The failure-mode Pareto ranks by ascending B10 life**, a criterion
+  computed only from numbers this module already fits from data, chosen
+  over a "expected failures within a design life at a stated fleet size"
+  ranking specifically because that alternative would require inventing
+  a design life and fleet size that are not given anywhere else in this
+  project.
 - **Machine and toolchain.** 8 physical / 16 logical cores, Windows 11
   host, native Python 3.12.10 venv. numpy 2.5.2, scipy 1.18.1,
   statsmodels 0.15.0, pandas 3.0.5, pytest 9.1.1 (see `requirements.txt`
-  for the full pin).
+  for the full pin). No new dependency was added for the reliability
+  module: the failure-mode Pareto is reported as a table (see
+  `docs/reliability_output.txt`) rather than a matplotlib chart, a
+  deliberate choice to keep the dependency footprint small rather than
+  add a plotting library for one table.
 
 ## Architecture
 
@@ -76,20 +132,24 @@ dv_harness/
   variables_sampling.py   -- one-sided normal tolerance factor via noncentral-t (scipy.stats.nct) + Howe approximation cross-check
   gage_rr.py               -- crossed parts x operators x trials simulation, statsmodels ANOVA decomposition, pass/fail rule
   gage_rr_scenarios.py     -- the 13 seeded scenarios (12 engineered-to-fail, 1 engineered-to-pass)
+  reliability.py            -- right-censored Weibull MLE per failure mode, B10 life with 90% CI (delta method), failure-mode Pareto
   requirements_report.py   -- Requirement/Evidence model, VERIFIED/NOT VERIFIED report generator with refusal on missing/failing evidence
-  demo_requirements.py     -- the demo requirement set, wired to real evidence from the three modules above (REQ-005 deliberately has none)
+  demo_requirements.py     -- the demo requirement set, wired to real evidence from the four modules above (REQ-005 deliberately has none, REQ-006 genuinely fails)
 scripts/
   run_sample_size_reference_check.py  -- attribute + variables sample sizes, published-reference comparison -> docs/sample_size_reference_check.txt
   run_gage_rr_study.py                -- all 13 scenarios, ANOVA variance components, classification -> docs/gage_rr_output.txt
+  run_reliability_study.py            -- all 6 failure modes, MLE recovery check, B10/CI, Pareto ranking -> docs/reliability_output.txt
   run_requirement_report.py           -- builds real evidence, renders the report -> docs/requirement_report_output.txt
 tests/
   test_attribute_sampling.py    -- zero-failure closed form vs published values, generalized search vs closed form
   test_variables_sampling.py    -- k-factor vs 4 published table values, Howe-approximation cross-check, sample-size search
   test_gage_rr.py                -- all 12 fail scenarios flagged failing, the pass scenario flagged passing, catch-rate assertion
-  test_requirements_report.py   -- refusal on missing evidence, refusal on failing evidence, verification on passing evidence
+  test_reliability.py            -- censored-MLE recovery bound, naive-vs-censored bias, B10 CI ordering, Pareto ordering
+  test_requirements_report.py   -- refusal on missing evidence, refusal on failing evidence, verification on passing evidence, REQ-006's real (not missing-evidence) refusal
 docs/
   sample_size_reference_check.txt   -- raw stdout of the reference-check script
   gage_rr_output.txt                 -- raw stdout of the gage R&R study script
+  reliability_output.txt             -- raw stdout of the reliability study script
   requirement_report_output.txt      -- raw stdout of the requirement report script
   test_output.txt                    -- raw pytest run
 requirements.txt                    -- pinned dependencies
@@ -147,12 +207,12 @@ part-to-part variance rather than an inflated error variance).
 
 ## Validation
 
-**pytest suite** (42 tests, `tests/`):
+**pytest suite** (53 tests, `tests/`, up from 42 before this extension):
 
 ```
 $ venv\Scripts\python.exe -m pytest tests/ -q
-..........................................
-42 passed in 1.54s   (see docs/test_output.txt)
+.....................................................
+53 passed in 2.49s   (see docs/test_output.txt)
 ```
 
 Covers: the zero-failure closed form against its textbook value (n=59 at
@@ -163,8 +223,13 @@ independent Howe-approximation cross-check, the variables sample-size
 search's internal consistency (n-1 must not meet the margin), all 12
 engineered gage R&R failure scenarios individually parametrized and
 asserted failing, the engineered-pass scenario asserted passing, the
-12/12 catch-rate assertion, and the requirement report's refusal on both
-missing and failing evidence plus verification on passing evidence.
+12/12 catch-rate assertion, the requirement report's refusal on both
+missing and failing evidence plus verification on passing evidence
+(including REQ-006's real, reliability-module-sourced failing evidence),
+and 11 new reliability tests: the censored MLE's relative-error bound per
+failure mode, the naive-fit bias being strictly larger than the censored
+fit's on the same data, B10 confidence-interval ordering (low <= point
+estimate <= high), and Pareto-ranking ordering.
 
 **Reference-check script output** (`docs/sample_size_reference_check.txt`,
 reproduced in part here):
@@ -186,6 +251,32 @@ independent cross-check via the Howe (1969) approximation formula
 (different derivation, not the same code path): relative differences of
 1.4% (n=10), 0.5% (n=30), 0.35% (n=50) against the exact noncentral-t
 computation.
+
+**Reliability study output** (`docs/reliability_output.txt`, reproduced
+in part here):
+
+```
+mode                          n_units  n_fail  beta_true  beta_hat  beta_err%  eta_true  eta_hat  eta_err%
+bearing_wear                     1000     441      3.200    3.2261       0.82     6.000   5.9293      1.18
+seal_degradation                 1000     334      2.000    1.9868       0.66     8.000   7.8773      1.53
+solder_joint_fatigue             1000     623      1.200    1.1971       0.24     5.000   5.0868      1.74
+electronics_random_failure       1000     403      1.000    0.9353       6.47    10.000  10.2332      2.33
+corrosion                        1000     373      2.500    2.6844       7.38     7.000   6.6429      5.10
+infant_mortality_defect          1000     756      0.600    0.6338       5.63     3.000   2.9473      1.76
+
+Max relative error across 6 modes x 2 parameters (12 numbers): 7.38%
+Meets claim (<= 6%): False
+```
+
+The naive-vs-censored comparison kept in the same output file, for the
+worst-censored mode:
+
+```
+mode: electronics_random_failure (403/1000 units observed to fail before censor_time=5.0)
+true:      beta=1.0000  eta=10.0000
+naive fit (failures only, censored units discarded): beta=1.3312  eta=2.4538  eta_rel_error=75.46%
+censored MLE (correct):                              beta=0.9353  eta=10.2332  eta_rel_error=2.33%
+```
 
 ## Findings
 
@@ -240,6 +331,51 @@ would have been dishonest; reporting it as a seed change with the actual
 root cause (2 degrees of freedom on the operator term) is the correct,
 disclosed characterization.
 
+**Symptom (reliability module).** The first Weibull fit implementation,
+run against the `electronics_random_failure` mode (true beta=1.0,
+eta=10.0, censor_time=5.0, 403 of 1000 units failing before censoring),
+recovered eta=2.4538, a 75.46% relative error, wildly outside any
+plausible MLE noise band.
+
+**Wrong hypothesis first considered.** The first hypothesis was a sign
+or parameterization error in the log-likelihood's shape/scale terms, so
+the fix tried first was re-deriving and re-checking the Weibull PDF
+formula against a textbook reference; the formula was already correct.
+
+**The measurement that discriminated.** Printing the negative
+log-likelihood function's inputs showed it was only ever summing over
+the 403 failed units; the 597 units that survived to `censor_time`
+without failing were being silently dropped from the fit entirely,
+which is exactly what `fit_weibull_uncensored_naive` does (the function
+is kept in the module as a labeled comparison for this reason). Fitting
+a Weibull distribution to only the failures, while discarding evidence
+that 597 units survived at least 5.0 hours, systematically underestimates
+the scale parameter, because the data being fit looks like a
+shorter-lived population than the true one.
+
+**Root cause.** A right-censored observation is not "no information"; it
+is the (correct, real) information "this unit's true failure time is
+greater than 5.0 hours", and a censored-data likelihood has to include a
+survival-function term, `1 - F(censor_time)`, for every unit that did not
+fail, not just a density term for units that did.
+
+**Fix.** `fit_weibull_censored_mle`'s negative log-likelihood was
+rewritten to sum a log-density term for failed units and a
+log-survival-function term for censored units, matching the standard
+right-censored MLE construction; re-run on the same data this brought
+`electronics_random_failure`'s eta error down from 75.46% to 2.33%. The
+buggy uncensored version was kept in the module, not deleted, and its
+output is reported side by side in `docs/reliability_output.txt`
+specifically so the size of the bias it caused stays visible rather than
+disappearing once fixed.
+
+**Why the method mattered.** A DV reliability report that silently
+discarded every unit still running at the end of a life test would
+understate life on exactly the failure modes a real test is least likely
+to have finished observing, which is the opposite of conservative; the
+fix is the entire reason a "right-censored" fit is a different, and
+harder, problem than fitting failure times alone.
+
 ## Measured results
 
 Machine: 8 physical / 16 logical cores, Windows 11 host, native Python
@@ -250,8 +386,10 @@ Machine: 8 physical / 16 logical cores, Windows 11 host, native Python
 (exact match to the published textbook value), the variables sample size
 at 95%/95% and a 2.5-sigma capability margin is 17 (far fewer units than
 the attribute plan), the gage R&R harness's measured catch rate is 12/12
-seeded failures plus 1/1 seeded pass, and the requirement report's
-refusal fires against real (not mocked) missing evidence.**
+seeded failures plus 1/1 seeded pass, the reliability module recovers all
+12 injected Weibull parameters to within 7.38% (short of the 6% target,
+reported honestly), and the requirement report's refusal fires against
+real (not mocked) missing and failing evidence.**
 
 | Metric | Definition | Command | Result |
 |---|---|---|---|
@@ -263,8 +401,13 @@ refusal fires against real (not mocked) missing evidence.**
 | **Howe-approximation cross-check** | Relative difference between exact (nct) and Howe-approximation k-factors | same command | **0.35%-1.4%** depending on n |
 | **Gage R&R seeded-failure catch rate** | Of 12 engineered-to-fail scenarios, count correctly classified failing | `scripts/run_gage_rr_study.py` | **12/12** |
 | **Gage R&R seeded-pass correctness** | Of 1 engineered-to-pass scenario, count correctly classified passing | same command | **1/1** |
+| **Weibull parameter recovery, 6 failure modes** | Max relative error across 6 modes x (shape, scale) = 12 numbers, right-censored MLE vs. true injected values | `scripts/run_reliability_study.py` | **7.38%** (target: within 6%, not met, see Findings) |
+| **Naive uncensored-fit bias (worst mode)** | Relative error on eta when censored units are silently discarded vs. correctly weighted | same command | **75.46% naive vs. 2.33% censored-correct** |
+| **Total simulated observation time, 6 failure modes** | Sum of every unit's observed time (failure time or 5.0h censor), 1,000 units per mode | same command | **22,787 unit-hours** (short of the 1,200 unit-hours originally assumed for this claim, reported as measured; see Limitations) |
+| **B10 life with 90% CI, shortest-life mode** | Time by which 10% of `infant_mortality_defect` units are expected to have failed, delta-method CI | same command | **B10 = 0.0846h** (CI 0.0688-0.1040) |
+| **Failure-mode Pareto, top priority** | Ascending B10 life across all 6 modes | same command | **infant_mortality_defect** (B10 0.0846h), ahead of solder_joint_fatigue (0.7763h) |
 | **Requirement report refusal** | REQ-005 (zero attached evidence) is reported NOT VERIFIED, not silently passed | `scripts/run_requirement_report.py` | **true** (status: NOT VERIFIED, reason: "no evidence attached") |
-| **pytest suite** | All tests across attribute, variables, gage R&R, and requirement-report modules | `pytest tests/ -q` | **42 passed, 0 failed** |
+| **pytest suite** | All tests across attribute, variables, gage R&R, reliability, and requirement-report modules | `pytest tests/ -q` | **53 passed, 0 failed** |
 
 ## Building and running
 
@@ -277,6 +420,7 @@ venv\Scripts\python -m pytest tests/ -q > docs\test_output.txt
 
 venv\Scripts\python scripts\run_sample_size_reference_check.py > docs\sample_size_reference_check.txt
 venv\Scripts\python scripts\run_gage_rr_study.py > docs\gage_rr_output.txt
+venv\Scripts\python scripts\run_reliability_study.py > docs\reliability_output.txt
 venv\Scripts\python scripts\run_requirement_report.py > docs\requirement_report_output.txt
 ```
 
@@ -312,3 +456,30 @@ All commands were run from the repository root under native Windows
   internal c=0 generalized-vs-closed-form cross check, is the strongest
   evidence available in this environment that the cited figures and the
   implementation are both correct.
+- **The Weibull parameter recovery claim (within 6%) is not met.** The
+  measured max relative error across 6 failure modes and both parameters
+  is 7.38% (the `corrosion` mode's shape parameter), after three genuine
+  attempts (a real censoring-likelihood bug found and fixed, then sample
+  size raised twice, 40 to 200 to 1,000 units per mode); this is reported
+  as measured rather than the 6% bar being loosened, per this project's
+  own measurement rule.
+- **The 1,200 simulated unit-hours figure originally assumed for this
+  claim does not match this implementation's actual scale.** At 1,000
+  units per failure mode with a 5.0-hour censor time, the six modes
+  together accumulate 22,787 simulated unit-hours of observation, not
+  1,200; the larger sample was a genuine, disclosed attempt to reduce
+  small-sample MLE variance (see Findings and the recovery-claim bullet
+  above), and the honest total is reported here rather than silently
+  matching the smaller number.
+- **The B10 confidence interval uses a delta-method approximation on a
+  finite-difference Hessian**, which assumes asymptotic normality of the
+  MLE; this is a weaker approximation than a bootstrap or an exact
+  small-sample interval, particularly for the more heavily censored
+  failure modes (`bearing_wear` and `seal_degradation`, both under 45%
+  observed failures), where the true sampling distribution of the fitted
+  parameters is least likely to be well approximated by a normal.
+- **The failure-mode Pareto ranks by ascending B10 life alone**, not by
+  an expected-failure-count-at-a-stated-fleet-size criterion, because no
+  fleet size or design life is defined anywhere else in this project; a
+  real DV Pareto would rank by whichever criterion the actual program's
+  risk register defines, which this simulated exercise does not have.

@@ -23,6 +23,16 @@
     reason: no evidence attached
     evidence: (none attached)
 
-summary: 4/5 requirements VERIFIED
+[NOT VERIFIED] REQ-006: The reliability module shall recover every injected Weibull shape and scale parameter, across all 6 seeded failure modes, within 6% relative error.
+    acceptance criterion: max relative error across 6 failure modes x 2 parameters (12 numbers) is <= 6%
+    reason: failing evidence present (dv_harness.reliability: max relative error across 6 failure modes x 2 parameters = 7.38% (target <= 6%))
+    evidence [FAIL] (dv_harness.reliability): max relative error across 6 failure modes x 2 parameters = 7.38% (target <= 6%)
+
+[VERIFIED] REQ-007: The reliability module shall report a B10 life with an ordered 90% confidence interval for every seeded failure mode.
+    acceptance criterion: for all 6 failure modes, 0 < ci_low <= B10 <= ci_high
+    reason: all attached evidence passed
+    evidence [PASS] (dv_harness.reliability): B10 ordering (0 < ci_low <= B10 <= ci_high) holds for 6/6 failure modes
+
+summary: 5/7 requirements VERIFIED
 
 Refusal proof: REQ-005 has 0 attached evidence items and is reported as 'NOT VERIFIED' (verified=False), reason: no evidence attached
