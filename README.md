@@ -26,6 +26,14 @@ than hidden, see Findings), and the requirement report's refusal path is
 proven to fire against real evidence, including a genuinely-failing
 requirement produced by that honest 7.38% miss, not a mocked example.
 
+**Extension (Sep. 2026).** A simulated wafer-shape metrology module
+decomposes a wafer height map into the canonical bow/cylindrical/saddle
+warpage terms, sizes the measurement uncertainty on that decomposition with
+its own crossed gage R&R study, and adds a decision rule that refuses to
+call a model validated without enough repeats: 30 of 30 seeded model-form
+errors are caught with the correct failing term named, at 0 false flags
+over 40 clean lots.
+
 ## Why this exists
 
 A DV plan has to answer two questions before any other verification
@@ -155,6 +163,18 @@ docs/
 requirements.txt                    -- pinned dependencies
 ```
 
+**Extension (Sep. 2026), wafer-shape reconciliation:**
+```
+dv_harness/
+  wafer_shape.py              -- bow/cylindrical/saddle decomposition: least-squares quadratic-form fit, synthetic height-map generator, reference oracle (normal-equations solve, independent of the lstsq fit path)
+  wafer_shape_gage_rr.py       -- crossed gage R&R applied to the shape decomposition (reuses gage_rr.py's ANOVA machinery on the fitted coefficients), plus the insufficient-repeats refusal rule
+  model_form_error_detector.py -- seeded model-form-error injector and the z-score-against-calibrated-SE catch/false-flag sweep
+scripts/
+  run_wafer_shape_study.py    -- all 5 sub-studies (recovery, invariants, gage R&R, refusal rule, 30-seed/40-clean sweep) -> docs/wafer_shape_output.txt
+tests/
+  test_wafer_shape.py          -- reference-oracle diff, rotation invariants, refusal-rule firing, seeded catch-rate assertion
+```
+
 ### Design deep-dives
 
 **Why noncentral-t for the variables sample size, not a large-sample
@@ -207,7 +227,9 @@ part-to-part variance rather than an inflated error variance).
 
 ## Validation
 
-**pytest suite** (53 tests, `tests/`, up from 42 before this extension):
+**pytest suite** (112 tests total as of the Sep. 2026 wafer-shape extension
+below, 53 tests as of the reliability extension that preceded it, up from
+42 before that):
 
 ```
 $ venv\Scripts\python.exe -m pytest tests/ -q
@@ -277,6 +299,40 @@ true:      beta=1.0000  eta=10.0000
 naive fit (failures only, censored units discarded): beta=1.3312  eta=2.4538  eta_rel_error=75.46%
 censored MLE (correct):                              beta=0.9353  eta=10.2332  eta_rel_error=2.33%
 ```
+
+**Extension (Sep. 2026), wafer-shape reconciliation** (`docs/wafer_shape_output.txt`
+in full; reproduced in part here):
+
+```
+1. Noiseless ground-truth recovery + lstsq vs normal-equations reference oracle
+   max abs coefficient error over 200 random trials: 7.598e-16 mm (< 1e-9 mm: True)
+   lstsq vs normal-equations oracle, max abs diff: 9.177e-16 mm (< 1e-8 mm: True)
+
+2. Rotation-invariant checks (90 and 180 degree)
+   90 deg: bow invariant, cyl/saddle sign-flip, max abs diff from analytic prediction: 7.511e-16 mm
+   180 deg: bow/cyl/saddle invariant, tip/tilt sign-flip, max abs diff: 7.945e-16 mm
+
+3. Gage R&R sized for the shape decomposition (10 wafers x 3 operators x 4 trials, df=90)
+   term    pct_grr  ndc  AIAG pass
+   bow       19.00    7  True
+   cyl       28.07    4  False
+   saddle    35.72    3  False
+
+4. Refusal rule
+   scenario A (2 parts x 3 operators x 1 trial, df=0): INSUFFICIENT_DATA, refused correctly
+   scenario B (10 parts x 3 operators x 4 trials, df=90): MODEL VALIDATED
+
+5. Model-form-error detector: 30/30 seeded errors caught (correct term named), 0/40 clean-lot false flags
+```
+
+The measurement-uncertainty budget for the detector (item 5) is the gage
+R&R study's own calibrated standard error per term (item 3), not a
+hand-picked number: each injected model-form error is 8 standard errors,
+each detection threshold is 4 standard errors, and the two AIAG-failing
+terms (cyl, saddle) are still caught reliably because the detector
+compares against the term's own measured noise floor, not a fixed
+tolerance, which is the entire point of sizing uncertainty before deciding
+what counts as a real discrepancy.
 
 ## Findings
 
@@ -409,6 +465,18 @@ real (not mocked) missing and failing evidence.**
 | **Requirement report refusal** | REQ-005 (zero attached evidence) is reported NOT VERIFIED, not silently passed | `scripts/run_requirement_report.py` | **true** (status: NOT VERIFIED, reason: "no evidence attached") |
 | **pytest suite** | All tests across attribute, variables, gage R&R, reliability, and requirement-report modules | `pytest tests/ -q` | **53 passed, 0 failed** |
 
+**Extension (Sep. 2026), wafer-shape reconciliation.** Same machine as above.
+
+| Metric | Definition | Command | Result |
+|---|---|---|---|
+| **Shape decomposition recovery** | Max abs coefficient error recovering known ground truth from noiseless synthetic data, 200 trials | `scripts/run_wafer_shape_study.py` | **7.598e-16 mm** (< 1e-9 mm target) |
+| **Reference-oracle agreement** | Max abs diff, lstsq fit vs. independent normal-equations solve, 200 trials | same command | **9.177e-16 mm** (< 1e-8 mm target) |
+| **Gage R&R for the shape decomposition** | Measurement uncertainty per term, 10 wafers x 3 operators x 4 trials | same command | **bow 19.00% GRR / cyl 28.07% / saddle 35.72%** (bow AIAG-passes, cyl and saddle do not, reported honestly) |
+| **Insufficient-repeats refusal** | A study with 0 residual degrees of freedom must return INSUFFICIENT_DATA, not a verdict | same command | **refused correctly** |
+| **Seeded model-form-error catch rate** | Of 30 seeded errors (one term at a time, both signs), count caught with the correct term named | same command | **30/30** |
+| **Clean-lot false-flag rate** | Of 40 lots with no seeded error, count incorrectly flagged | same command | **0/40** |
+| **pytest suite (full repo, after this extension)** | All tests across every module including wafer-shape | `pytest tests/ -q` | **112 passed, 0 failed** |
+
 ## Building and running
 
 ```bash
@@ -422,6 +490,7 @@ venv\Scripts\python scripts\run_sample_size_reference_check.py > docs\sample_siz
 venv\Scripts\python scripts\run_gage_rr_study.py > docs\gage_rr_output.txt
 venv\Scripts\python scripts\run_reliability_study.py > docs\reliability_output.txt
 venv\Scripts\python scripts\run_requirement_report.py > docs\requirement_report_output.txt
+venv\Scripts\python scripts\run_wafer_shape_study.py > docs\wafer_shape_output.txt
 ```
 
 All commands were run from the repository root under native Windows
@@ -463,6 +532,24 @@ All commands were run from the repository root under native Windows
   size raised twice, 40 to 200 to 1,000 units per mode); this is reported
   as measured rather than the 6% bar being loosened, per this project's
   own measurement rule.
+- **All wafer-shape data is simulated**, generated by `wafer_shape.synth_height_map`
+  from injected ground-truth coefficients; no interferometer, no physical
+  wafer, and no real fab metrology tool is involved anywhere in this
+  extension.
+- **The cylindrical and saddle terms fail the AIAG %GRR<=30 acceptance
+  rule** (28.07% and 35.72% measured) even though the model-form-error
+  detector still catches errors in those terms reliably; the detector
+  compares against each term's own measured noise floor rather than a
+  fixed AIAG pass/fail line, which is why a term that would fail a
+  standard gage R&R acceptance decision can still support a working
+  model-form-error decision rule. A real measurement system this noisy on
+  cyl/saddle would need improvement before being trusted for anything
+  finer than the 8-standard-error offsets seeded here.
+- **The wafer-shape basis is a low-order quadratic form (piston, tip,
+  tilt, bow, cylindrical, saddle) fit over the whole wafer**, not a full
+  Zernike polynomial expansion; higher-order warpage modes (trefoil,
+  higher-order astigmatism) are not represented and would alias into
+  these six terms.
 - **The 1,200 simulated unit-hours figure originally assumed for this
   claim does not match this implementation's actual scale.** At 1,000
   units per failure mode with a 5.0-hour censor time, the six modes

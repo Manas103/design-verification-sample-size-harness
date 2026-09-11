@@ -1,0 +1,92 @@
+
+===============================================================================
+1. Noiseless ground-truth recovery + lstsq vs normal-equations reference oracle
+===============================================================================
+grid points: 709, design matrix (X^T X) condition number: 29.035
+noiseless ground-truth recovery, max abs coefficient error over 200 random trials: 7.598e-16 mm
+lstsq vs normal-equations reference oracle, max abs diff over 200 random trials (noisy and noiseless): 9.177e-16 mm
+recovery meets < 1e-9 mm tolerance: True
+oracle agreement meets < 1e-8 mm tolerance: True
+
+=======================================================
+2. Rotation-invariant checks (90 degree and 180 degree)
+=======================================================
+90 degree rotation: bow invariant, cyl/saddle sign-flip -- max abs diff from analytic prediction over 100 random trials: 7.511e-16 mm
+180 degree rotation: bow/cyl/saddle invariant, tip/tilt sign-flip -- max abs diff from analytic prediction over 100 random trials: 7.945e-16 mm
+both invariants meet < 1e-9 mm tolerance: True
+
+================================================================================
+3. Measurement uncertainty: simulated gage R&R study for the shape decomposition
+================================================================================
+study design: 10 simulated wafers x 3 operators x 4 trials, residual df = 90
+term       repeat_var  operator_var  interaction_var    grr_var  pct_grr  ndc  se(3x4 mean)  AIAG pass
+bow         1.210e-08     2.239e-05        0.000e+00  2.240e-05    19.00    7     2.732e-03       True
+cyl         7.136e-09     9.953e-06        0.000e+00  9.960e-06    28.07    4     1.822e-03      False
+saddle      2.334e-08     1.249e-05        0.000e+00  1.251e-05    35.72    3     2.041e-03      False
+
+AIAG %GRR<=30 / NDC>=5 is reported for context only; this claim is 'measurement uncertainty
+sized', not 'measurement system passes AIAG acceptance', so a term failing the AIAG rule
+(cyl on NDC, saddle on both) is reported honestly rather than hidden.
+
+===========================================================
+4. Refusal rule: insufficient repeats must not be validated
+===========================================================
+scenario A (insufficient): 2 parts x 3 operators x 1 trial, residual df = 0 (minimum required: 15)
+verdict: INSUFFICIENT_DATA
+  bow: INSUFFICIENT_DATA (only 0 residual degrees of freedom from 2 parts x 3 operators x 1 trials, below the minimum 15 required to trust the bow measurement-noise estimate)
+  cyl: INSUFFICIENT_DATA (only 0 residual degrees of freedom from 2 parts x 3 operators x 1 trials, below the minimum 15 required to trust the cyl measurement-noise estimate)
+  saddle: INSUFFICIENT_DATA (only 0 residual degrees of freedom from 2 parts x 3 operators x 1 trials, below the minimum 15 required to trust the saddle measurement-noise estimate)
+refused correctly (even though model == measured exactly): True
+
+scenario B (sufficient, for contrast): 10 parts x 3 operators x 4 trials, residual df = 90
+verdict: MODEL VALIDATED
+
+==============================================================
+5. Model-form-error detector: 30 seeded errors + 40 clean lots
+==============================================================
+calibration study standard errors (3x4 grand mean), used as the fixed measurement-uncertainty
+budget for every trial below: {'bow': 0.0027319907658976236, 'cyl': 0.001821628792325152, 'saddle': 0.0020406214250127323}
+injected offset magnitude: 8.0 x calibration SE, detection threshold: 4.0 standard errors
+
+seeded model-form-error trials: 30/30 caught (correct term named)
+  trial  0 injected=cyl     sign=+1 verdict=MODEL NOT VALIDATED  failing=('cyl',) z={'bow': '0.28', 'cyl': '8.11', 'saddle': '1.45'} caught=True
+  trial  1 injected=bow     sign=-1 verdict=MODEL NOT VALIDATED  failing=('bow',) z={'bow': '7.12', 'cyl': '0.77', 'saddle': '1.67'} caught=True
+  trial  2 injected=saddle  sign=-1 verdict=MODEL NOT VALIDATED  failing=('saddle',) z={'bow': '0.48', 'cyl': '0.48', 'saddle': '8.22'} caught=True
+  trial  3 injected=bow     sign=+1 verdict=MODEL NOT VALIDATED  failing=('bow',) z={'bow': '8.61', 'cyl': '0.40', 'saddle': '0.10'} caught=True
+  trial  4 injected=bow     sign=+1 verdict=MODEL NOT VALIDATED  failing=('bow',) z={'bow': '7.90', 'cyl': '1.69', 'saddle': '0.01'} caught=True
+  trial  5 injected=saddle  sign=-1 verdict=MODEL NOT VALIDATED  failing=('saddle',) z={'bow': '0.72', 'cyl': '1.60', 'saddle': '8.49'} caught=True
+  trial  6 injected=bow     sign=+1 verdict=MODEL NOT VALIDATED  failing=('bow',) z={'bow': '6.96', 'cyl': '0.78', 'saddle': '1.28'} caught=True
+  trial  7 injected=cyl     sign=+1 verdict=MODEL NOT VALIDATED  failing=('cyl',) z={'bow': '1.31', 'cyl': '10.52', 'saddle': '0.38'} caught=True
+  trial  8 injected=saddle  sign=+1 verdict=MODEL NOT VALIDATED  failing=('saddle',) z={'bow': '0.56', 'cyl': '1.66', 'saddle': '6.45'} caught=True
+  trial  9 injected=cyl     sign=-1 verdict=MODEL NOT VALIDATED  failing=('cyl',) z={'bow': '1.18', 'cyl': '9.48', 'saddle': '0.02'} caught=True
+  trial 10 injected=bow     sign=+1 verdict=MODEL NOT VALIDATED  failing=('bow',) z={'bow': '7.94', 'cyl': '0.61', 'saddle': '1.68'} caught=True
+  trial 11 injected=bow     sign=+1 verdict=MODEL NOT VALIDATED  failing=('bow',) z={'bow': '8.65', 'cyl': '0.29', 'saddle': '0.41'} caught=True
+  trial 12 injected=bow     sign=-1 verdict=MODEL NOT VALIDATED  failing=('bow',) z={'bow': '8.89', 'cyl': '0.15', 'saddle': '0.13'} caught=True
+  trial 13 injected=bow     sign=-1 verdict=MODEL NOT VALIDATED  failing=('bow',) z={'bow': '7.97', 'cyl': '1.55', 'saddle': '0.05'} caught=True
+  trial 14 injected=cyl     sign=-1 verdict=MODEL NOT VALIDATED  failing=('cyl',) z={'bow': '1.02', 'cyl': '7.10', 'saddle': '1.30'} caught=True
+  trial 15 injected=saddle  sign=+1 verdict=MODEL NOT VALIDATED  failing=('saddle',) z={'bow': '0.79', 'cyl': '0.39', 'saddle': '7.16'} caught=True
+  trial 16 injected=saddle  sign=-1 verdict=MODEL NOT VALIDATED  failing=('saddle',) z={'bow': '0.04', 'cyl': '0.36', 'saddle': '9.78'} caught=True
+  trial 17 injected=bow     sign=-1 verdict=MODEL NOT VALIDATED  failing=('bow',) z={'bow': '7.40', 'cyl': '0.73', 'saddle': '0.59'} caught=True
+  trial 18 injected=cyl     sign=+1 verdict=MODEL NOT VALIDATED  failing=('cyl',) z={'bow': '1.42', 'cyl': '6.78', 'saddle': '1.91'} caught=True
+  trial 19 injected=bow     sign=+1 verdict=MODEL NOT VALIDATED  failing=('bow',) z={'bow': '7.92', 'cyl': '0.30', 'saddle': '0.26'} caught=True
+  trial 20 injected=cyl     sign=+1 verdict=MODEL NOT VALIDATED  failing=('cyl',) z={'bow': '0.76', 'cyl': '7.44', 'saddle': '0.47'} caught=True
+  trial 21 injected=cyl     sign=-1 verdict=MODEL NOT VALIDATED  failing=('cyl',) z={'bow': '0.69', 'cyl': '10.03', 'saddle': '0.37'} caught=True
+  trial 22 injected=bow     sign=+1 verdict=MODEL NOT VALIDATED  failing=('bow',) z={'bow': '8.10', 'cyl': '0.14', 'saddle': '0.69'} caught=True
+  trial 23 injected=bow     sign=+1 verdict=MODEL NOT VALIDATED  failing=('bow',) z={'bow': '6.93', 'cyl': '0.09', 'saddle': '0.12'} caught=True
+  trial 24 injected=bow     sign=+1 verdict=MODEL NOT VALIDATED  failing=('bow',) z={'bow': '8.31', 'cyl': '2.47', 'saddle': '0.83'} caught=True
+  trial 25 injected=saddle  sign=-1 verdict=MODEL NOT VALIDATED  failing=('saddle',) z={'bow': '0.32', 'cyl': '2.38', 'saddle': '7.02'} caught=True
+  trial 26 injected=bow     sign=+1 verdict=MODEL NOT VALIDATED  failing=('bow',) z={'bow': '8.03', 'cyl': '0.92', 'saddle': '1.10'} caught=True
+  trial 27 injected=cyl     sign=+1 verdict=MODEL NOT VALIDATED  failing=('cyl',) z={'bow': '1.39', 'cyl': '7.03', 'saddle': '0.43'} caught=True
+  trial 28 injected=saddle  sign=-1 verdict=MODEL NOT VALIDATED  failing=('saddle',) z={'bow': '0.61', 'cyl': '0.57', 'saddle': '8.75'} caught=True
+  trial 29 injected=cyl     sign=+1 verdict=MODEL NOT VALIDATED  failing=('cyl',) z={'bow': '0.39', 'cyl': '12.73', 'saddle': '1.26'} caught=True
+
+clean lots (no injected error): 0/40 false flags
+
+=======
+Summary
+=======
+decomposition recovery + reference oracle: PASS
+rotation invariants: PASS
+refusal rule fires correctly on insufficient repeats: PASS
+seeded model-form-error catch rate: 30/30
+clean-lot false-flag rate: 0/40
