@@ -34,6 +34,20 @@ call a model validated without enough repeats: 30 of 30 seeded model-form
 errors are caught with the correct failing term named, at 0 false flags
 over 40 clean lots.
 
+**Extension (Aug. 2026, test method validation bench for destructive and
+attribute bench tests).** Two more measurement-system methods, plus a
+combined fault sweep across all three: a nested (hierarchical) gage R&R
+for destructive tests, where a specimen cannot be remeasured, so the
+crossed design above does not apply; an attribute agreement module
+scoring visual pass/fail calls against a reference standard by Cohen's
+kappa; and a %GRR-as-percentage-of-tolerance metric reported alongside
+the crossed study's existing %GRR-of-study-variation metric, because
+AIAG defines both and they can disagree (see Findings). Combined across
+the crossed, nested, and attribute methods, this extension's own seeded
+measurement-system faults are caught 24 of 24, at 0 false flags over 30
+healthy studies (10 per method, a fixed, disclosed seed list, see
+Findings for the honest false-flag rate outside that list).
+
 ## Why this exists
 
 A DV plan has to answer two questions before any other verification
@@ -131,6 +145,41 @@ a VERIFIED status.
   `docs/reliability_output.txt`) rather than a matplotlib chart, a
   deliberate choice to keep the dependency footprint small rather than
   add a plotting library for one table.
+- **All nested (destructive-test) gage R&R and attribute agreement study
+  data is simulated**, drawn from `numpy.random.default_rng`; no physical
+  specimen was destroyed and no real visual inspection was performed.
+  What is validated is the estimator (the nested ANOVA sum-of-squares
+  decomposition, the Cohen's kappa computation), not a certified
+  measurement system.
+- **The nested design cannot detect an operator*part interaction failure
+  mode, structurally, not as a harness limitation.** Because no part is
+  ever measured by more than one operator (the specimen is destroyed),
+  there is no data pair from which an interaction term could be
+  estimated; a real "operator inconsistent on specific parts" problem in
+  a destructive test would be invisible to this design and to any nested
+  design, not just to this implementation.
+- **The operator term in the nested design is pooled (forced to zero)
+  unless its F-test against the part(operator) term is significant at
+  alpha=0.05**, the same "pool a non-significant term" convention AIAG
+  MSA's ANOVA method already applies to the crossed design's interaction
+  term. This was added after a first implementation without pooling
+  produced false failures on a genuinely healthy (zero true operator
+  variance) measurement system at close to the rate an unguarded
+  point-estimate difference implies, because a 3-operator study gives the
+  operator mean square only 2 degrees of freedom; see Findings for the
+  full account.
+- **%GRR of tolerance uses a stated, assumed bilateral tolerance
+  (`DEFAULT_TOLERANCE = 6.0`)**, not a tolerance derived from data
+  anywhere else in this project (none exists for a simulated study); this
+  is disclosed rather than left implicit, and the pass/fail decision for
+  the crossed study stays on %GRR of study variation (the metric the 12
+  seeded scenarios were calibrated against), with %GRR of tolerance
+  reported alongside it for comparison, not as a silent replacement.
+- **The 24-of-24 and 0-of-30 claims are measured over a fixed, disclosed
+  set of scenario and healthy-study seeds** (`dv_harness/measurement_system_fault_sweep.py`),
+  chosen before the combined sweep was run, not selected afterward from a
+  wider search; the module's own docstring records the honest false-flag
+  rate found on a wider seed sweep during development (see Findings).
 
 ## Architecture
 
@@ -173,6 +222,26 @@ scripts/
   run_wafer_shape_study.py    -- all 5 sub-studies (recovery, invariants, gage R&R, refusal rule, 30-seed/40-clean sweep) -> docs/wafer_shape_output.txt
 tests/
   test_wafer_shape.py          -- reference-oracle diff, rotation invariants, refusal-rule firing, seeded catch-rate assertion
+```
+
+**Extension (Aug. 2026), test method validation bench for destructive and
+attribute bench tests:**
+```
+dv_harness/
+  nested_gage_rr.py                     -- nested (destructive-test) gage R&R: hand-computed hierarchical ANOVA sum-of-squares, F-test operator-term pooling
+  nested_gage_rr_scenarios.py           -- 7 seeded nested scenarios (6 fail, 1 pass)
+  attribute_agreement.py                -- Cohen's kappa for visual pass/fail attribute agreement vs a reference standard
+  attribute_agreement_scenarios.py      -- 7 seeded attribute scenarios (6 fail, 1 pass)
+  measurement_system_fault_sweep.py     -- combined 24-fault / 30-healthy-study sweep across all three methods
+gage_rr.py                              -- extended with pct_grr_of_tolerance (the %GRR-as-percentage-of-tolerance metric)
+scripts/
+  run_nested_gage_rr_study.py           -- all 7 nested scenarios -> docs/nested_gage_rr_output.txt
+  run_attribute_agreement_study.py      -- all 7 attribute scenarios -> docs/attribute_agreement_output.txt
+  run_measurement_system_fault_sweep.py -- combined sweep + %GRR-denominator disagreement check -> docs/measurement_system_fault_sweep_output.txt
+tests/
+  test_nested_gage_rr.py                -- sum-of-squares partition exactness, catch-rate assertion, no-interaction-term structural check
+  test_attribute_agreement.py           -- kappa hand-computed-confusion-matrix cross-check, catch-rate assertion
+  test_measurement_system_fault_sweep.py -- 24/24 and 0/30 assertions
 ```
 
 ### Design deep-dives
@@ -224,6 +293,45 @@ discrimination even in cases where %GRR alone would be borderline (see
 `poor_discrimination_low_part_variation` in the results table, where NDC
 collapses to 1 even though the scenario was engineered around a shrunk
 part-to-part variance rather than an inflated error variance).
+
+**Why the nested ANOVA is computed by hand rather than via statsmodels'
+formula interface.** `C(operator) + C(part_in_operator)`, with
+`part_in_operator` coded as a globally unique label per (operator, part)
+pair, looks like an ordinary additive two-factor model, but it is not:
+because every part belongs to exactly one operator, the part dummy
+columns already fully determine operator membership under standard
+treatment coding, so the joint design matrix is rank-deficient (see
+Findings). The classical nested sum-of-squares decomposition (operator
+means vs. the grand mean, part-within-operator means vs. their operator's
+mean, individual measurements vs. their part's mean) has no such
+ambiguity, because each term is computed from group means directly rather
+than from an overparametrized regression design matrix, and it is the
+same computation the statsmodels formula was trying, and failing, to
+reproduce.
+
+**Why the operator term is pooled by an F-test rather than a raw
+point-estimate subtraction.** `gage_rr.py`'s crossed design also
+subtracts mean squares and clamps at zero, and that is adequate there
+because the crossed design's 10 x 3 x 3 shape gives every term enough
+degrees of freedom to be reasonably stable. The nested design's operator
+term has only `n_operators - 1 = 2` degrees of freedom regardless of how
+many parts or trials are added, because df_operator depends only on the
+operator count; a raw point-estimate subtraction at 2 degrees of freedom
+is dominated by sampling noise (see Findings), so an F-test against the
+part(operator) mean square, pooling (zeroing) the operator term unless it
+clears `ALPHA_POOL = 0.05`, is required for the nested design specifically
+in a way it is not for the crossed one.
+
+**Why Cohen's kappa rather than raw percent agreement for the attribute
+study.** Percent agreement alone rewards an appraiser for the population's
+own base rate, not for the appraiser's actual discriminating ability: an
+appraiser who always calls "no defect" on a population that is 95% good
+parts scores 95% raw agreement while carrying zero information about
+which parts are actually defective. Kappa's chance-correction term,
+`p_expected`, subtracts out exactly the agreement two independent, blind
+guessers would produce given the same marginal call rates, which is why
+`test_percent_agreement_and_kappa_diverge_for_a_random_guesser` pins down
+a rater with 89%+ raw agreement and exactly 0 kappa.
 
 ## Validation
 
@@ -334,6 +442,36 @@ compares against the term's own measured noise floor, not a fixed
 tolerance, which is the entire point of sizing uncertainty before deciding
 what counts as a real discrepancy.
 
+**Extension (Aug. 2026), test method validation bench** (`docs/nested_gage_rr_output.txt`,
+`docs/attribute_agreement_output.txt`, `docs/measurement_system_fault_sweep_output.txt`,
+reproduced in part here):
+
+```
+Nested (destructive-test) gage R&R: 6/6 seeded failures caught, 1/1 pass correct
+  nested_repeatability_fail_moderate     %GRR= 54.38  NDC=2  FAIL (correct)
+  nested_repeatability_fail_severe       %GRR= 86.39  NDC=0  FAIL (correct)
+  nested_operator_fail_moderate          %GRR= 71.01  NDC=1  FAIL (correct)
+  nested_operator_fail_severe            %GRR= 70.64  NDC=1  FAIL (correct)
+  nested_combined_fail                   %GRR= 34.66  NDC=3  FAIL (correct)
+  nested_poor_discrimination_fail        %GRR= 76.11  NDC=1  FAIL (correct)
+  nested_well_designed_gage_pass         %GRR=  7.40  NDC=18 PASS (correct)
+
+Attribute agreement (Cohen's kappa): 6/6 seeded failures caught, 1/1 pass correct
+  insensitive_rater_fail        kappa=0.7111  FAIL (correct)
+  overcalling_rater_fail        kappa=0.4102  FAIL (correct)
+  random_guesser_fail           kappa=0.1035  FAIL (correct)
+  combined_poor_rater_fail      kappa=0.5306  FAIL (correct)
+  rare_defect_low_power_fail    kappa=0.3496  FAIL (correct)
+  severe_bias_shift_fail        kappa=0.1959  FAIL (correct)
+  well_calibrated_rater_pass    kappa=0.9216  PASS (correct)
+
+Combined sweep: 24/24 seeded faults caught, 0/30 false flags on the fixed healthy-study seed list
+
+%GRR of study variation vs %GRR of tolerance, crossed scenario set: 2/13 scenarios
+disagree (combined_repeatability_operator, poor_discrimination_low_part_variation);
+see Findings for why.
+```
+
 ## Findings
 
 **Symptom.** The first full run of the 13 seeded gage R&R scenarios,
@@ -432,6 +570,110 @@ to have finished observing, which is the opposite of conservative; the
 fix is the entire reason a "right-censored" fit is a different, and
 harder, problem than fitting failure times alone.
 
+**Symptom (nested gage R&R).** The first implementation of the nested
+ANOVA fit `measurement ~ C(operator) + C(part_in_operator)` through
+statsmodels' formula interface, mirroring the crossed design's approach
+in `gage_rr.py`. It ran, but statsmodels raised
+`SingularMatrixWarning: The design matrix is rank-deficient` on every
+single scenario, and the resulting variance-component estimates were
+visibly wrong: a scenario engineered with a large operator bias
+(sigma_operator=0.55, seed 203) came back at %GRR=3.39, NDC=41,
+classified passing, the opposite of what a 0.55-sigma operator effect
+against a 1.0-sigma part effect should produce.
+
+**Wrong hypothesis first considered.** The first hypothesis was a data
+bug in `simulate_nested_study` (a part label collision, an indexing
+error putting the wrong operator's noise on the wrong part). Printing the
+simulated DataFrame's group means by hand showed the data was correct:
+operator-level means clearly differed by roughly the injected 0.55-sigma
+amount.
+
+**The measurement that discriminated.** The `SingularMatrixWarning`
+itself was the actual signal, not a benign warning to suppress. Once
+`part_in_operator` is coded as a globally unique label per (operator,
+part) pair, its treatment-coded dummy columns already fully determine
+which operator each row belongs to; asking OLS to also estimate a
+separate `C(operator)` effect on top of that is asking it to solve an
+underdetermined system, and `statsmodels` does not raise a hard error for
+this, it silently returns one of infinitely many equally-valid,
+essentially arbitrary coefficient solutions.
+
+**Root cause.** A nested factor's dummy variables are never
+linearly independent of the outer factor's dummy variables under
+standard treatment coding; this is a property of nesting, not a coding
+mistake, and it is the reason real nested-ANOVA implementations (R's
+`aov` with an `Error()` term, SAS PROC NESTED) use a sequential,
+group-means-based computation rather than a single joint regression
+design matrix.
+
+**Fix.** `run_nested_anova` was rewritten to compute the classical
+hierarchical sum-of-squares directly from group means (operator means,
+part-within-operator means, the grand mean), with no joint design matrix
+and no rank-deficiency possible; `test_sum_of_squares_partition_is_exact`
+pins down that the three sums of squares exactly reconstruct the total
+corrected sum of squares, which a rank-deficient regression's arbitrary
+coefficients cannot guarantee. Re-run on the same seed-203 scenario, this
+produced %GRR=25.80, still not a clean fail, which led to the second,
+separate finding below.
+
+**Why the method mattered.** A statistical-software warning that does
+not stop execution is not the same as a warning that can be ignored; the
+correct response here was to abandon the higher-level formula interface
+for this specific model shape rather than to suppress or work around the
+warning.
+
+**Symptom (operator-term pooling).** After fixing the rank-deficiency
+bug, a wider seed sweep of the intended `well_designed_gage_pass`-style
+healthy scenario (true operator variance exactly 0) showed roughly 20%
+of runs falsely failing the %GRR/NDC rule, and this rate did not improve
+by adding more parts, more trials, or more operators in the ranges tried
+(3 to 10 operators).
+
+**Wrong hypothesis first considered.** The first hypothesis was that more
+data would fix it: `n_parts_per_operator` and `n_trials` were both
+doubled, on the (wrong) assumption that the false-flag rate was a
+small-sample noise problem that more measurements would average away.
+It did not measurably help.
+
+**The measurement that discriminated.** The operator mean square's
+degrees of freedom, `n_operators - 1`, does not grow with the number of
+parts or trials at all; printing `MS_operator` and `MS_part_in_op`
+across 100 seeds at a fixed true operator variance of 0 showed
+`MS_operator` swinging over roughly a 20x range purely from
+chi-squared(2) sampling noise, while `MS_part_in_op` (with far more
+degrees of freedom) stayed comparatively stable. The false failures were
+concentrated on the runs where `MS_operator` happened to land high by
+chance, not on any particular part or trial count.
+
+**Root cause.** A point-estimate variance-component subtraction
+(`operator_var = max(0, MS_operator - MS_part_in_op)`, clamped only at
+zero from below) has no way to distinguish "the operator term is truly
+larger" from "the operator term's own sampling noise happened to land
+high this run" when its mean square has only 2 degrees of freedom; more
+data downstream of the operator level cannot fix a problem whose noise
+source is the operator count itself.
+
+**Fix.** An F-test (`stats.f.sf(F_operator, df_operator, df_part_in_op)`)
+now gates whether the operator term contributes to the GRR variance at
+all: below the `ALPHA_POOL = 0.05` significance bar, the operator term is
+pooled to zero, the same "pool a non-significant term" convention AIAG
+MSA already applies to the crossed design's interaction term. Re-running
+the same false-flag sweep after this fix brought the rate down to
+roughly 5%, consistent with the alpha itself (a hypothesis test at
+alpha=0.05 is expected to reject a true null about 5% of the time by
+construction, not 0%). The 10 healthy-study seeds actually reported in
+`docs/measurement_system_fault_sweep_output.txt` (0/30 false flags) are a
+specific, disclosed list chosen before the combined sweep was run, not a
+claim that this method's false-flag rate is 0% in general; a wider sweep
+during development found the honest ~5% rate reported here.
+
+**Why the method mattered.** Reporting 0/30 without disclosing that a
+wider seed sweep shows a nonzero baseline false-flag rate would have been
+the same kind of unearned-precision problem this project's other
+Findings entries exist to avoid: a number that is true of the specific
+seeds reported, but would read as a stronger claim than the method
+actually supports.
+
 ## Measured results
 
 Machine: 8 physical / 16 logical cores, Windows 11 host, native Python
@@ -477,6 +719,20 @@ real (not mocked) missing and failing evidence.**
 | **Clean-lot false-flag rate** | Of 40 lots with no seeded error, count incorrectly flagged | same command | **0/40** |
 | **pytest suite (full repo, after this extension)** | All tests across every module including wafer-shape | `pytest tests/ -q` | **112 passed, 0 failed** |
 
+**Extension (Aug. 2026), test method validation bench for destructive and
+attribute bench tests.** Same machine as above.
+
+| Metric | Definition | Command | Result |
+|---|---|---|---|
+| **Nested (destructive-test) gage R&R seeded-failure catch rate** | Of 6 engineered-to-fail scenarios, count correctly classified failing | `scripts/run_nested_gage_rr_study.py` | **6/6** |
+| **Nested gage R&R seeded-pass correctness** | Of 1 engineered-to-pass scenario, count correctly classified passing | same command | **1/1** |
+| **Attribute agreement seeded-failure catch rate** | Of 6 engineered-to-fail scenarios, count correctly classified failing by Cohen's kappa | `scripts/run_attribute_agreement_study.py` | **6/6** |
+| **Attribute agreement seeded-pass correctness** | Of 1 engineered-to-pass scenario, count correctly classified passing | same command | **1/1** |
+| **Combined seeded measurement-system fault catch rate** | 12 crossed + 6 nested + 6 attribute, all three methods combined | `scripts/run_measurement_system_fault_sweep.py` | **24/24** |
+| **False flags over healthy studies, fixed disclosed seed list** | 10 crossed + 10 nested + 10 attribute healthy studies | same command | **0/30** (honest baseline false-flag rate on a wider seed sweep is roughly 5% for the nested method, see Findings) |
+| **%GRR-of-tolerance vs %GRR-of-study-variation disagreement** | Of the 13 crossed scenarios, count where the two denominators classify on opposite sides of the 30% line | same command | **2/13** (`combined_repeatability_operator`, `poor_discrimination_low_part_variation`; see Findings) |
+| **pytest suite (full repo, after this extension)** | All tests across every module including nested gage R&R and attribute agreement | `pytest tests/ -q` | **140 passed, 0 failed** |
+
 ## Building and running
 
 ```bash
@@ -491,6 +747,9 @@ venv\Scripts\python scripts\run_gage_rr_study.py > docs\gage_rr_output.txt
 venv\Scripts\python scripts\run_reliability_study.py > docs\reliability_output.txt
 venv\Scripts\python scripts\run_requirement_report.py > docs\requirement_report_output.txt
 venv\Scripts\python scripts\run_wafer_shape_study.py > docs\wafer_shape_output.txt
+venv\Scripts\python scripts\run_nested_gage_rr_study.py > docs\nested_gage_rr_output.txt
+venv\Scripts\python scripts\run_attribute_agreement_study.py > docs\attribute_agreement_output.txt
+venv\Scripts\python scripts\run_measurement_system_fault_sweep.py > docs\measurement_system_fault_sweep_output.txt
 ```
 
 All commands were run from the repository root under native Windows
@@ -570,3 +829,40 @@ All commands were run from the repository root under native Windows
   fleet size or design life is defined anywhere else in this project; a
   real DV Pareto would rank by whichever criterion the actual program's
   risk register defines, which this simulated exercise does not have.
+- **The nested (destructive-test) gage R&R design cannot detect an
+  operator*part interaction failure mode at all**, structurally, because
+  no part is ever measured by more than one operator; a real destructive
+  measurement system whose specific problem is "one operator is
+  inconsistent on certain specimen types but not others" would pass this
+  study undetected, which is a property of every nested gage R&R design,
+  not a gap specific to this implementation.
+- **The 0-of-30 false-flag claim is reported on a fixed, disclosed seed
+  list chosen before the combined sweep was run, not a general
+  false-positive-rate claim.** A wider seed sweep of the nested method's
+  healthy scenario during development measured a false-flag rate close
+  to the `ALPHA_POOL = 0.05` significance level used for operator-term
+  pooling, i.e. roughly 5%, which is the honest, expected behavior of a
+  hypothesis test at that alpha, not zero; see Findings for the full
+  account and the two genuine attempts (rank-deficiency fix, then F-test
+  pooling) that reduced it from an unpooled ~20% down to that ~5%
+  baseline.
+- **%GRR of tolerance depends on a stated, assumed tolerance
+  (`DEFAULT_TOLERANCE = 6.0`) that is not derived from any real
+  engineering drawing or spec**, because none exists for a simulated
+  study; the metric's value is in the calculation method and the honest
+  disclosure that it can disagree with %GRR of study variation on the
+  same data (2 of the 13 crossed scenarios here), not in the specific
+  number 6.0.
+- **Cohen's kappa here scores appraiser-vs-reference-standard agreement**
+  (accuracy), not appraiser-vs-appraiser reproducibility or an
+  appraiser's within-appraiser repeatability across repeat trials on the
+  same parts, both of which are also part of a complete AIAG attribute
+  MSA study and are not implemented here.
+- **The attribute agreement module's "rare defect" scenario demonstrates
+  a real limitation of kappa itself, not a bug**: at a low true defect
+  rate, even a moderately competent appraiser can produce an
+  unacceptable kappa because chance-corrected agreement has very little
+  signal to work with when almost every part is genuinely good; a real
+  attribute MSA study on a rare-defect process would need many more
+  parts than the 150 used elsewhere in this module to have adequate
+  power, which this project does not separately size.

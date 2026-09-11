@@ -1,0 +1,31 @@
+Study shape: 3 operators x 10 destructive parts each x 3 replicate specimens per part (90 measurements)
+Acceptance rule: PASS iff %GRR <= 30.0 AND NDC >= 5
+Operator-term pooling: operator variance is set to 0 unless its F-test vs part(operator) is significant at alpha=0.05
+
+scenario                               engineered      %GRR  NDC  pooled  classified  correct
+---------------------------------------------------------------------------------------------
+nested_repeatability_fail_moderate     fail           54.38    2    True        fail     True
+nested_repeatability_fail_severe       fail           86.39    0    True        fail     True
+nested_operator_fail_moderate          fail           71.01    1   False        fail     True
+nested_operator_fail_severe            fail           70.64    1   False        fail     True
+nested_combined_fail                   fail           34.66    3    True        fail     True
+nested_poor_discrimination_fail        fail           76.11    1    True        fail     True
+nested_well_designed_gage_pass         pass            7.40   18    True        pass     True
+
+Variance components (raw), per scenario:
+  nested_repeatability_fail_moderate: repeatability_var=0.4335 operator_var=0.0000 part_var=1.0323 grr_var=0.4335 total_var=1.4658 operator_f_pvalue=0.3940 reasons=['%GRR=54.38 exceeds threshold 30.0', 'NDC=2 below threshold 5']
+  nested_repeatability_fail_severe: repeatability_var=1.2811 operator_var=0.0000 part_var=0.4356 grr_var=1.2811 total_var=1.7167 operator_f_pvalue=0.4795 reasons=['%GRR=86.39 exceeds threshold 30.0', 'NDC=0 below threshold 5']
+  nested_operator_fail_moderate: repeatability_var=0.0032 operator_var=0.6939 part_var=0.6855 grr_var=0.6971 total_var=1.3826 operator_f_pvalue=0.0003 reasons=['%GRR=71.01 exceeds threshold 30.0', 'NDC=1 below threshold 5']
+  nested_operator_fail_severe: repeatability_var=0.0026 operator_var=0.8888 part_var=0.8949 grr_var=0.8914 total_var=1.7863 operator_f_pvalue=0.0003 reasons=['%GRR=70.64 exceeds threshold 30.0', 'NDC=1 below threshold 5']
+  nested_combined_fail: repeatability_var=0.1478 operator_var=0.0000 part_var=1.0822 grr_var=0.1478 total_var=1.2300 operator_f_pvalue=0.3947 reasons=['%GRR=34.66 exceeds threshold 30.0', 'NDC=3 below threshold 5']
+  nested_poor_discrimination_fail: repeatability_var=0.0243 operator_var=0.0000 part_var=0.0176 grr_var=0.0243 total_var=0.0419 operator_f_pvalue=0.5755 reasons=['%GRR=76.11 exceeds threshold 30.0', 'NDC=1 below threshold 5']
+  nested_well_designed_gage_pass: repeatability_var=0.0034 operator_var=0.0000 part_var=0.6255 grr_var=0.0034 total_var=0.6289 operator_f_pvalue=0.2076 reasons=[]
+
+Seeded-failure catch rate: 6/6
+Seeded-pass correctness: 1/1
+Overall: 7/7 scenarios correctly classified
+
+Note: unlike the crossed design, no part*operator interaction failure mode is
+representable here (see nested_gage_rr.py docstring); a real interaction problem
+in a destructive-test measurement system would be structurally invisible to this
+study design, not just to this harness.

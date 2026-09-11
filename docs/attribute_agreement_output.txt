@@ -1,0 +1,15 @@
+Acceptance rule: PASS iff kappa >= 0.75
+
+scenario                       engineered   n_defect  %agree    kappa  classified  correct
+------------------------------------------------------------------------------------------
+insensitive_rater_fail         fail               43   89.3%   0.7111        fail     True
+overcalling_rater_fail         fail               43   68.7%   0.4102        fail     True
+random_guesser_fail            fail               43   54.7%   0.1035        fail     True
+combined_poor_rater_fail       fail               43   79.3%   0.5306        fail     True
+rare_defect_low_power_fail     fail                5   89.3%   0.3496        fail     True
+severe_bias_shift_fail         fail               43   51.3%   0.1959        fail     True
+well_calibrated_rater_pass     pass               21   98.0%   0.9216        pass     True
+
+Seeded-failure catch rate: 6/6
+Seeded-pass correctness: 1/1
+Overall: 7/7 scenarios correctly classified

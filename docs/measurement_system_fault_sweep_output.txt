@@ -1,0 +1,23 @@
+Seeded measurement-system faults caught: 24/24
+  (12 crossed gage R&R + 6 nested/destructive gage R&R + 6 attribute agreement)
+
+False flags over 30 healthy studies (10 crossed + 10 nested + 10 attribute): 0
+
+%GRR of study variation vs %GRR of tolerance (tolerance=6.0), crossed scenario set:
+scenario                                    %GRR study var  %GRR tolerance   agree
+----------------------------------------------------------------------------------
+repeatability_fail_moderate                          61.87           41.53    True
+repeatability_fail_severe                            64.46           78.26    True
+operator_bias_fail_moderate                          35.55           32.91    True
+operator_bias_fail_severe                            55.96           58.43    True
+interaction_fail_moderate                            46.30           42.57    True
+interaction_fail_severe                              53.83           76.36    True
+combined_repeatability_operator                      43.95           29.37   False
+combined_repeatability_interaction                   42.40           46.04    True
+combined_operator_interaction                        73.19           65.37    True
+poor_discrimination_low_part_variation               80.30           13.11   False
+combined_all_moderate                                50.70           45.91    True
+combined_all_severe                                  69.07           92.53    True
+well_designed_gage_pass                               7.99            5.41    True
+
+Disagreements: 2/13 scenarios classify differently depending on which %GRR denominator is used against the same 30% bright line (see README Findings).

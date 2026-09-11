@@ -60,3 +60,18 @@ def test_rule_is_not_trivially_always_fail():
     # Guard against a degenerate "always fail" acceptance rule: at least
     # one scenario (the engineered-to-pass one) must actually pass.
     assert any(_run(s).passed for s in SCENARIOS if not s.engineered_to_fail)
+
+
+def test_pct_grr_of_tolerance_is_computed_and_independent_of_study_sample():
+    from dv_harness.gage_rr import pct_grr_of_tolerance
+    result = _run(SCENARIOS[0])
+    assert result.pct_grr_tolerance == pytest.approx(
+        pct_grr_of_tolerance(result.grr_var, tolerance=6.0)
+    )
+    # Same grr_var, different tolerance widths must give different
+    # percentages (this is the entire point of the metric: it does not
+    # depend on how much part-to-part variation this study happened to
+    # sample, only on the stated engineering tolerance).
+    assert pct_grr_of_tolerance(result.grr_var, tolerance=3.0) == pytest.approx(
+        2 * pct_grr_of_tolerance(result.grr_var, tolerance=6.0)
+    )

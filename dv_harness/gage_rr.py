@@ -46,6 +46,29 @@ of the "conditionally acceptable" real-world measurement systems as
 failing, which is not what "engineered to fail" means here) plus the
 companion NDC >= 5 rule (also AIAG), which independently catches poor
 part-to-part discrimination even when %GRR alone is borderline.
+
+%GRR as a percentage of tolerance (Sep. 2026 extension). AIAG MSA
+actually defines two %GRR denominators, not one: "% Study Variation"
+(this module's original `pct_grr`, the GRR spread as a fraction of this
+specific study's total observed spread, i.e. `total_var` above) and
+"% Tolerance" (the GRR spread as a fraction of the part's published
+engineering tolerance, independent of how much part-to-part variation
+happened to be sampled into this particular study). % Tolerance is the
+more decision-relevant number for a design-verification reader, because
+a study that happens to sample an unusually wide range of parts can look
+artificially good on % Study Variation while still being unfit to
+measure against a tight spec, and vice versa. `pct_grr_of_tolerance`
+computes it as the standard 5.15-sigma (99% two-sided normal) spread of
+the GRR standard deviation over a stated bilateral tolerance:
+
+    pct_grr_tolerance = 100 * 5.15 * sqrt(grr_var) / tolerance
+
+This project reports both numbers side by side rather than replacing one
+with the other, and keeps the pass/fail decision on % Study Variation
+(the metric the 12 seeded scenarios below were calibrated against), since
+% Tolerance additionally requires a tolerance value this simulated study
+does not otherwise define; `DEFAULT_TOLERANCE` states that assumption
+explicitly rather than leaving it implicit.
 """
 from __future__ import annotations
 
@@ -59,6 +82,16 @@ from statsmodels.stats.anova import anova_lm
 
 PCT_GRR_THRESHOLD = 30.0
 NDC_THRESHOLD = 5
+DEFAULT_TOLERANCE = 6.0  # stated bilateral spec width (USL - LSL) assumption, see module docstring
+
+
+def pct_grr_of_tolerance(grr_var: float, tolerance: float = DEFAULT_TOLERANCE) -> float:
+    """%GRR as a percentage of a stated engineering tolerance (AIAG
+    "% Tolerance"), as opposed to `GageRRResult.pct_grr`, which is a
+    percentage of this study's own total observed variation
+    (AIAG "% Study Variation"). See module docstring for why both are
+    reported."""
+    return 100.0 * 5.15 * math.sqrt(grr_var) / tolerance
 
 
 def simulate_study(n_parts: int, n_operators: int, n_trials: int,
@@ -100,13 +133,14 @@ class GageRRResult:
     grr_var: float
     total_var: float
     pct_grr: float
+    pct_grr_tolerance: float
     ndc: int
     passed: bool
     reasons: tuple
 
 
 def compute_variance_components(anova_table: pd.DataFrame, n_parts: int, n_operators: int,
-                                 n_trials: int) -> GageRRResult:
+                                 n_trials: int, tolerance: float = DEFAULT_TOLERANCE) -> GageRRResult:
     ms_part = anova_table.loc["C(part)", "sum_sq"] / anova_table.loc["C(part)", "df"]
     ms_operator = anova_table.loc["C(operator)", "sum_sq"] / anova_table.loc["C(operator)", "df"]
     ms_po = anova_table.loc["C(part):C(operator)", "sum_sq"] / anova_table.loc["C(part):C(operator)", "df"]
@@ -137,16 +171,17 @@ def compute_variance_components(anova_table: pd.DataFrame, n_parts: int, n_opera
         n_parts=n_parts, n_operators=n_operators, n_trials=n_trials,
         repeatability_var=repeatability_var, operator_var=operator_var,
         interaction_var=interaction_var, part_var=part_var,
-        grr_var=grr_var, total_var=total_var, pct_grr=pct_grr, ndc=ndc,
+        grr_var=grr_var, total_var=total_var, pct_grr=pct_grr,
+        pct_grr_tolerance=pct_grr_of_tolerance(grr_var, tolerance), ndc=ndc,
         passed=passed, reasons=tuple(reasons),
     )
 
 
 def evaluate_scenario(n_parts: int, n_operators: int, n_trials: int,
                        sigma_part: float, sigma_operator: float, sigma_po: float,
-                       sigma_repeat: float, seed: int) -> GageRRResult:
+                       sigma_repeat: float, seed: int, tolerance: float = DEFAULT_TOLERANCE) -> GageRRResult:
     """Convenience wrapper: simulate + fit ANOVA + compute components + classify."""
     df = simulate_study(n_parts, n_operators, n_trials, sigma_part, sigma_operator,
                          sigma_po, sigma_repeat, seed=seed)
     anova_table = run_anova(df)
-    return compute_variance_components(anova_table, n_parts, n_operators, n_trials)
+    return compute_variance_components(anova_table, n_parts, n_operators, n_trials, tolerance)
